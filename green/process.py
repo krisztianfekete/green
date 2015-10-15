@@ -26,12 +26,15 @@ def ddebug(msg, err=None): # pragma: no cover
     err can be an instance of sys.exc_info() -- which is the latest traceback
     info
     """
-    import os
+    import os, inspect
     if err:
         err = ''.join(traceback.format_exception(*err))
     else:
         err = ''
-    sys.__stdout__.write("({}) {} {}".format(os.getpid(), msg, err)+'\n')
+    (
+        frame, filename, line_number, function_name, lines, index
+    ) = inspect.getouterframes(inspect.currentframe())[1]
+    sys.__stdout__.write("({}): {}:{} {} {}".format(os.getpid(), function_name, line_number, msg, err)+'\n')
     sys.__stdout__.flush()
 
 
@@ -246,6 +249,7 @@ def poolRunner(target, queue, coverage_number=None, omit_patterns=[]): # pragma:
         # Restore the state of the temp directory
         shutil.rmtree(tempfile.tempdir, ignore_errors=True)
         tempfile.tempdir = saved_tempdir
+        ddebug(None)
         queue.put(None)
         # Finish coverage
         if coverage_number and coverage:
@@ -267,11 +271,13 @@ def poolRunner(target, queue, coverage_number=None, omit_patterns=[]): # pragma:
         # Let the main process know what test we are starting
         test = proto_test(test)
         if test not in already_sent:
+            ddebug(test)
             queue.put(test)
             already_sent.add(test)
 
     def finalize_callback(test_result):
         # Let the main process know what happened with the test run
+        ddebug(test_result)
         queue.put(test_result)
 
     result = ProtoTestResult(start_callback, finalize_callback)
@@ -288,6 +294,8 @@ def poolRunner(target, queue, coverage_number=None, omit_patterns=[]): # pragma:
         result.startTest(t)
         result.addError(t, err)
         result.stopTest(t)
+        ddebug(t)
+        ddebug(result)
         queue.put(t)
         queue.put(result)
         cleanup()
@@ -303,12 +311,14 @@ def poolRunner(target, queue, coverage_number=None, omit_patterns=[]): # pragma:
             # if the underlying framework didn't, but either way we don't want to
             # crash.
             if result.errors:
+                ddebug(result)
                 queue.put(result)
             else:
                 err = sys.exc_info()
                 result.startTest(test)
                 result.addError(test, err)
                 result.stopTest(test)
+                ddebug(result)
                 queue.put(result)
     else:
         # loadTargets() returned an object without a run() method, probably None
